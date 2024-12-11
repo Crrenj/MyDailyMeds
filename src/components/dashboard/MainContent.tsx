@@ -16,8 +16,10 @@ export default function MainContent() {
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    const queryUserId = searchParams.get('userId');
-    if (queryUserId) setUserId(queryUserId);
+    if (searchParams) { // Vérification si searchParams n'est pas null
+      const queryUserId = searchParams.get('userId');
+      if (queryUserId) setUserId(queryUserId);
+    }
   }, [searchParams]);
 
   useEffect(() => {
