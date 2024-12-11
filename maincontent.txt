@@ -1,0 +1,215 @@
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+export default function MainContent() {
+  const searchParams = useSearchParams();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userMedications, setUserMedications] = useState<any[]>([]);
+  const [selectedUserMedicationId, setSelectedUserMedicationId] = useState<string>('');
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [medicationId, setMedicationId] = useState<string>(''); // ID provenant du `medication_catalog`
+  const [dose, setDose] = useState<string>('');
+  const [unit, setUnit] = useState<string>('');
+  const [time, setTime] = useState<string>('');
+
+  // Récupérer l'ID utilisateur à partir des paramètres de recherche
+  useEffect(() => {
+    if (searchParams) {
+      const queryUserId = searchParams.get('userId');
+      setUserId(queryUserId);
+    }
+  }, [searchParams]);
+
+  // Charger les médicaments de l'utilisateur
+  useEffect(() => {
+    if (userId) {
+      fetch(`/api/user_medications?userId=${userId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.medications) {
+            setUserMedications(data.medications);
+          }
+        })
+        .catch((err) => console.error('Erreur lors du chargement des médicaments:', err));
+    }
+  }, [userId]);
+
+  // Charger les horaires d'un médicament sélectionné
+  useEffect(() => {
+    if (selectedUserMedicationId) {
+      fetch(`/api/schedules?userMedicationId=${selectedUserMedicationId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.schedules) {
+            setSchedules(data.schedules);
+          }
+        })
+        .catch((err) => console.error('Erreur lors du chargement des horaires:', err));
+    } else {
+      setSchedules([]);
+    }
+  }, [selectedUserMedicationId]);
+
+  // Ajouter un médicament à l'utilisateur
+  const handleAddUserMedication = async () => {
+    if (!userId || !medicationId) {
+      alert('Veuillez fournir un User ID et un Medication ID.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/user_medications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, medicationId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUserMedications([...userMedications, data.user_medication]);
+        setMedicationId('');
+      } else {
+        alert('Erreur lors de l\'ajout du médicament.');
+      }
+    } catch (err) {
+      console.error('Erreur lors de l\'ajout du médicament:', err);
+    }
+  };
+
+  // Ajouter un horaire à un médicament
+  const handleAddSchedule = async () => {
+    if (!selectedUserMedicationId || !dose || !time) {
+      alert('Veuillez fournir tous les paramètres nécessaires.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userMedicationId: selectedUserMedicationId, dose, unit, time }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSchedules([...schedules, data.schedule]);
+        setDose('');
+        setUnit('');
+        setTime('');
+      } else {
+        alert('Erreur lors de l\'ajout de l\'horaire.');
+      }
+    } catch (err) {
+      console.error('Erreur lors de l\'ajout de l\'horaire:', err);
+    }
+  };
+
+  // Marquer un médicament comme pris
+  const handleMarkAsTaken = async (scheduleId: string) => {
+    try {
+      const res = await fetch('/api/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduleId }),
+      });
+
+      if (res.ok) {
+        alert('Médicament marqué comme pris.');
+      } else {
+        alert('Erreur lors de la confirmation de prise.');
+      }
+    } catch (err) {
+      console.error('Erreur lors de la confirmation de prise:', err);
+    }
+  };
+
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">Gestion des médicaments</h1>
+      {userId && <p className="mt-2">Utilisateur ID : {userId}</p>}
+
+      {/* Ajouter un médicament */}
+      <div className="mt-4">
+        <h2 className="text-xl">Ajouter un médicament</h2>
+        <input
+          className="border rounded p-2 mr-2"
+          placeholder="Medication Catalog ID"
+          value={medicationId}
+          onChange={(e) => setMedicationId(e.target.value)}
+        />
+        <button
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+          onClick={handleAddUserMedication}
+        >
+          Ajouter
+        </button>
+      </div>
+
+      {/* Liste des médicaments */}
+      <div className="mt-8">
+        <h2 className="text-xl">Liste des médicaments</h2>
+        <ul>
+          {userMedications.map((med) => (
+            <li key={med.id} className="mt-2">
+              {med.name} ({med.notes})
+              <button
+                className="ml-4 bg-green-500 text-white px-3 py-1 rounded"
+                onClick={() => setSelectedUserMedicationId(med.id)}
+              >
+                Gérer horaires
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Horaires d'un médicament */}
+      {selectedUserMedicationId && (
+        <div className="mt-8">
+          <h2 className="text-xl">Horaires</h2>
+          <input
+            className="border rounded p-2 mr-2"
+            placeholder="Dose"
+            value={dose}
+            onChange={(e) => setDose(e.target.value)}
+          />
+          <input
+            className="border rounded p-2 mr-2"
+            placeholder="Unité (mg, ml)"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          />
+          <input
+            className="border rounded p-2 mr-2"
+            type="time"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+          />
+          <button
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+            onClick={handleAddSchedule}
+          >
+            Ajouter horaire
+          </button>
+
+          <ul className="mt-4">
+            {schedules.map((sch) => (
+              <li key={sch.id} className="mt-2">
+                {sch.dose}
+                {sch.unit && ` ${sch.unit}`} à {sch.time}
+                <button
+                  className="ml-4 bg-red-500 text-white px-3 py-1 rounded"
+                  onClick={() => handleMarkAsTaken(sch.id)}
+                >
+                  Marquer comme pris
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
