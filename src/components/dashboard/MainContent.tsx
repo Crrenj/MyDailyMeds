@@ -1,120 +1,148 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-interface Medication {
-  name: string;
-  taken: boolean;
-}
+export default function MainContent() {
+  const searchParams = useSearchParams();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userMedications, setUserMedications] = useState<any[]>([]);
+  const [selectedUserMedicationId, setSelectedUserMedicationId] = useState('');
+  const [schedules, setSchedules] = useState<any[]>([]);
 
-const MainContent = () => {
-  const [medications, setMedications] = useState<Medication[]>([]); // Type défini
-  const [newMedication, setNewMedication] = useState<string>("");
-  const [reminder, setReminder] = useState<string>("");
+  const [medicationId, setMedicationId] = useState(''); // Un ID provenant du medication_catalog
+  const [dose, setDose] = useState('');
+  const [unit, setUnit] = useState('');
+  const [time, setTime] = useState('');
 
-  const handleAddMedication = async () => {
-    if (newMedication) {
-      const res = await fetch("/api/medications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newMedication }),
-      });
+  useEffect(() => {
+    const queryUserId = searchParams.get('userId');
+    if (queryUserId) setUserId(queryUserId);
+  }, [searchParams]);
 
-      if (res.ok) {
-        const data = await res.json();
-        setMedications([...medications, { name: data.name, taken: false }]);
-        setNewMedication("");
-      } else {
-        alert("Erreur lors de l'ajout du médicament.");
-      }
+  useEffect(() => {
+    if (userId) {
+      fetch(`/api/user_medications?userId=${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.medications) setUserMedications(data.medications);
+        })
+        .catch(console.error);
     }
-  };
+  }, [userId]);
 
-  const handleConfirmTaken = async (index: number) => {
-    const medication = medications[index];
-    const res = await fetch(`/api/medications/${index}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taken: true }),
+  useEffect(() => {
+    if (selectedUserMedicationId) {
+      fetch(`/api/schedules?userMedicationId=${selectedUserMedicationId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.schedules) setSchedules(data.schedules);
+        })
+        .catch(console.error);
+    } else {
+      setSchedules([]);
+    }
+  }, [selectedUserMedicationId]);
+
+  const handleAddUserMedication = async () => {
+    if (!userId || !medicationId) {
+      alert('User ID ou Medication ID manquant');
+      return;
+    }
+
+    const res = await fetch('/api/user_medications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, medicationId }),
     });
 
     if (res.ok) {
-      const updatedMedications = medications.map((med, medIndex) =>
-        medIndex === index ? { ...med, taken: true } : med
-      );
-      setMedications(updatedMedications);
+      const data = await res.json();
+      setUserMedications([...userMedications, data.user_medication]);
     } else {
-      alert("Erreur lors de la confirmation.");
+      alert('Erreur lors de l\'ajout du médicament utilisateur.');
+    }
+  };
+
+  const handleAddSchedule = async () => {
+    if (!selectedUserMedicationId || !dose || !time) {
+      alert('Paramètres manquants pour ajouter un horaire.');
+      return;
+    }
+
+    const res = await fetch('/api/schedules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userMedicationId: selectedUserMedicationId, dose, unit, time }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      setSchedules([...schedules, data.schedule]);
+    } else {
+      alert('Erreur lors de l\'ajout de l\'horaire.');
+    }
+  };
+
+  const handleMarkAsTaken = async (scheduleId: string) => {
+    const res = await fetch('/api/logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scheduleId }),
+    });
+
+    if (res.ok) {
+      alert('Médicament marqué comme pris !');
+    } else {
+      alert('Erreur lors de la confirmation de prise.');
     }
   };
 
   return (
-    <div className="flex-1 bg-gray-50 p-8">
-      <h1 className="text-2xl font-bold">Welcome to the Dashboard</h1>
-      <p>Manage your medications, set reminders, and confirm your intakes.</p>
+    <div className="p-4">
+      <h1>Gestion des médicaments</h1>
+      {userId && <p>User ID : {userId}</p>}
 
-      <div className="mt-6">
-        <h2 className="text-xl font-semibold">Add a Medication</h2>
-        <div className="flex gap-2 mt-2">
-          <input
-            type="text"
-            placeholder="Enter medication name"
-            value={newMedication}
-            onChange={(e) => setNewMedication(e.target.value)}
-            className="p-2 border border-gray-300 rounded-md flex-1"
-          />
-          <button
-            onClick={handleAddMedication}
-            className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-          >
-            Add
-          </button>
-        </div>
+      <div>
+        <h2>Ajouter un médicament à l'utilisateur</h2>
+        <input
+          placeholder="Medication Catalog ID"
+          value={medicationId}
+          onChange={(e) => setMedicationId(e.target.value)}
+        />
+        <button onClick={handleAddUserMedication}>Ajouter</button>
       </div>
 
-      <div className="mt-6">
-        <h2 className="text-xl font-semibold">Medications</h2>
-        <ul className="mt-2 space-y-2">
-          {medications.map((med, index) => (
-            <li
-              key={index}
-              className="p-3 bg-white border border-gray-200 rounded-md flex justify-between items-center shadow-sm"
-            >
-              <span className={med.taken ? "line-through text-gray-500" : "text-black"}>
-                {med.name}
-              </span>
-              {!med.taken && (
-                <button
-                  onClick={() => handleConfirmTaken(index)}
-                  className="p-2 bg-green-500 text-white rounded-md hover:bg-green-600"
-                >
-                  Confirm Taken
-                </button>
-              )}
+      <div>
+        <h2>Liste des médicaments de l'utilisateur</h2>
+        <ul>
+          {userMedications.map(med => (
+            <li key={med.id}>
+              {med.name} ({med.notes})
+              <button onClick={() => setSelectedUserMedicationId(med.id)}>Gérer horaires</button>
             </li>
           ))}
         </ul>
       </div>
 
-      <div className="mt-6">
-        <h2 className="text-xl font-semibold">Set a Reminder</h2>
-        <div className="flex gap-2 mt-2">
-          <input
-            type="time"
-            value={reminder}
-            onChange={(e) => setReminder(e.target.value)}
-            className="p-2 border border-gray-300 rounded-md flex-1"
-          />
-          <button
-            onClick={() => alert(`Reminder set for ${reminder}`)}
-            className="p-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-          >
-            Set Reminder
-          </button>
+      {selectedUserMedicationId && (
+        <div>
+          <h2>Horaires</h2>
+          <input placeholder="Dose" value={dose} onChange={(e) => setDose(e.target.value)} />
+          <input placeholder="Unit (ex: mg)" value={unit} onChange={(e) => setUnit(e.target.value)} />
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          <button onClick={handleAddSchedule}>Ajouter Horaire</button>
+
+          <ul>
+            {schedules.map(sch => (
+              <li key={sch.id}>
+                {sch.dose}{sch.unit && sch.unit} à {sch.time}
+                <button onClick={() => handleMarkAsTaken(sch.id)}>Marquer comme pris</button>
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
+      )}
     </div>
   );
-};
-
-export default MainContent;
+}

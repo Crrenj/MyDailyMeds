@@ -30,7 +30,7 @@ export default function SignupForm() {
     const data = await res.json();
 
     if (res.ok) {
-      router.push(data.redirect || '/dashboard');
+      router.push(data.redirect || '/login');
     } else {
       setMessage(data.error || 'Une erreur est survenue.');
     }

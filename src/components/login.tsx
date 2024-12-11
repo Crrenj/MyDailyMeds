@@ -19,9 +19,11 @@ export default function LoginPage() {
     });
 
     const data = await res.json();
+    console.log('Response from API:', data);
 
-    if (res.ok) {
-      router.push(data.redirect || '/dashboard');
+    if (res.ok && data.userId) {
+      console.log('User ID:', data.userId);
+      router.push(`/dashboard?userId=${data.userId}`);
     } else {
       setMessage(data.error || 'Une erreur est survenue.');
     }
